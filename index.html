@@ -1613,9 +1613,54 @@ $btnStop.addEventListener('click',  () => { stopRequested = true; log('Stop requ
 log('PhantomGuard client initialised. TF.js version: ' + tf.version.tfjs, 'ok');
 drawLossChart();
 
-// Check for pre-filled server URL
-if ($serverUrl.value) log('Server URL pre-filled from URL params: ' + $serverUrl.value);
+// ── Auto-detect server URL ────────────────────────────────────────
+async function autoDetectServer() {
+  // Priority 1: ?server= URL param (from QR code)
+  const params = new URLSearchParams(window.location.search);
+  const sv     = params.get('server');
+  if (sv) {
+    $serverUrl.value = sv;
+    log('Server URL loaded from QR code ✓', 'ok');
+    verifyServer(sv);
+    return;
+  }
+
+  // Priority 2: fetch config.json from same GitHub Pages origin
+  log('Auto-detecting server URL from config.json…');
+  try {
+    const res  = await fetch('./config.json?t=' + Date.now());
+    const data = await res.json();
+    if (data.server_url && data.status === 'online') {
+      $serverUrl.value = data.server_url;
+      log(`Server URL auto-loaded ✓ (updated ${data.updated_at})`, 'ok');
+      verifyServer(data.server_url);
+    } else {
+      log('config.json found but server is offline — enter URL manually', 'warn');
+    }
+  } catch(e) {
+    log('Could not auto-load config.json — enter server URL manually', 'warn');
+  }
+}
+
+// Verify server is reachable
+async function verifyServer(url) {
+  try {
+    const res = await fetch(url + '/health');
+    const data = await res.json();
+    if (data.status === 'ok') {
+      log(`Server reachable ✓ — currently on round ${data.round}`, 'ok');
+      setStatus('Server connected — upload CSV to begin', 'done');
+    }
+  } catch(e) {
+    log('Server not reachable yet — wait for Colab to finish starting', 'warn');
+    // Retry after 5 seconds
+    setTimeout(() => verifyServer(url), 5000);
+  }
+}
+
+autoDetectServer();
 </script>
 
 </body>
+
 </html>
