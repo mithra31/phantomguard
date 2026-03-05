@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PhantomGuard — Federated Inventory Intelligence</title>
+
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — Neon Noir Cyberpunk
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #030712;
+  --bg2:         #0a0f1e;
+  --bg3:         #0d1424;
+  --panel:       #0e1628;
+  --border:      #1a2540;
+  --border-glow: #00f5ff44;
+
+  --cyan:        #00f5ff;
+  --cyan-dim:    #00c8d4;
+  --magenta:     #ff0080;
+  --yellow:      #ffe600;
+  --green:       #00ff9d;
+  --red:         #ff3131;
+  --orange:      #ff8c00;
+
+  --text:        #c8d8f0;
+  --text-dim:    #4a6080;
+  --text-bright: #eef6ff;
+
+  --font-mono:   'Share Tech Mono', monospace;
+  --font-display:'Orbitron', monospace;
+  --font-body:   'Rajdhani', sans-serif;
+
+  --glow-cyan:   0 0 8px #00f5ff88, 0 0 24px #00f5ff33;
+  --glow-mag:    0 0 8px #ff008088, 0 0 24px #ff008033;
+  --glow-green:  0 0 8px #00ff9d88, 0 0 24px #00ff9d22;
+  --glow-red:    0 0 8px #ff313188, 0 0 24px #ff313133;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,245,255,0.012) 2px,
+    rgba(0,245,255,0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Noise grain */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ─── Layout ──────────────────────────────────────────────── */
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+}
+
+/* ─── Header ──────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 0 20px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: .5;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-icon {
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--cyan);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: var(--glow-cyan);
+  animation: pulseIcon 3s ease-in-out infinite;
+}
+
+@keyframes pulseIcon {
+  0%,100% { box-shadow: var(--glow-cyan); }
+  50%      { box-shadow: 0 0 18px #00f5ffcc, 0 0 40px #00f5ff55; }
+}
+
+.logo-text h1 {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  letter-spacing: 3px;
+}
+
+.logo-text p {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.header-badges {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.badge-green  { color: var(--green);   border-color: var(--green);   background: #00ff9d0d; }
+.badge-cyan   { color: var(--cyan);    border-color: var(--cyan);    background: #00f5ff0d; }
+.badge-mag    { color: var(--magenta); border-color: var(--magenta); background: #ff00800d; }
+
+/* ─── Main grid ────────────────────────────────────────────── */
+.grid-main {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.grid-full { grid-column: 1 / -1; }
+
+/* ─── Panel ────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  opacity: .6;
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--cyan);
+  border-radius: 50%;
+  box-shadow: var(--glow-cyan);
+  animation: blink 2s step-start infinite;
+}
+
+@keyframes blink {
+  0%,100% { opacity:1; }
+  50%     { opacity:0; }
+}
+
+/* ─── Config panel ─────────────────────────────────────────── */
+.field { margin-bottom: 14px; }
+
+.field label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.field input, .field select {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--text-bright);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.field input:focus, .field select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px #00f5ff1a;
+}
+
+.field input::placeholder { color: var(--text-dim); }
+
+/* File drop zone */
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  position: relative;
+}
+
+.dropzone:hover, .dropzone.drag-over {
+  border-color: var(--cyan);
+  background: #00f5ff06;
+}
+
+.dropzone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+}
+
+.dropzone .dz-icon { font-size: 2rem; margin-bottom: 8px; }
+
+.dropzone .dz-text {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.dropzone .dz-text strong { color: var(--cyan); }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: all .2s;
+  width: 100%;
+  justify-content: center;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #00c8d4, #0066cc);
+  color: var(--bg);
+  font-weight: 700;
+  box-shadow: 0 0 16px #00f5ff33;
+}
+.btn-primary:hover { box-shadow: 0 0 24px #00f5ff66; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.btn-danger:hover { background: #ff313115; }
+
+.btn + .btn { margin-top: 8px; }
+
+/* ─── Status bar ───────────────────────────────────────────── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-idle    { background: var(--text-dim); }
+.dot-running { background: var(--cyan);   box-shadow: var(--glow-cyan);   animation: pulseGreen 1s infinite; }
+.dot-done    { background: var(--green);  box-shadow: var(--glow-green); }
+.dot-error   { background: var(--red);    box-shadow: var(--glow-red);   }
+
+@keyframes pulseGreen {
+  0%,100% { opacity:1; }
+  50%     { opacity:.3; }
+}
+
+/* ─── Progress bar ─────────────────────────────────────────── */
+.progress-wrap {
+  margin-bottom: 12px;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.progress-track {
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  border-radius: 2px;
+  transition: width .4s ease;
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+/* ─── Loss chart (canvas) ─────────────────────────────────── */
+#lossChart {
+  width: 100%;
+  height: 200px;
+  display: block;
+}
+
+/* ─── Stats row ────────────────────────────────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.val-cyan   { color: var(--cyan);    text-shadow: var(--glow-cyan); }
+.val-green  { color: var(--green);   text-shadow: var(--glow-green); }
+.val-mag    { color: var(--magenta); text-shadow: var(--glow-mag); }
+.val-yellow { color: var(--yellow);  text-shadow: 0 0 8px #ffe60088; }
+
+/* ─── Alert cards ──────────────────────────────────────────── */
+.alerts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.alert-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  animation: slideIn .3s ease;
+}
+
+@keyframes slideIn {
+  from { opacity:0; transform: translateY(8px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+
+.alert-card-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.alert-card-header.risk-high {
+  background: #ff313108;
+  border-left: 3px solid var(--red);
+}
+.alert-card-header.risk-medium {
+  background: #ff8c0008;
+  border-left: 3px solid var(--orange);
+}
+.alert-card-header.risk-low {
+  background: #00ff9d08;
+  border-left: 3px solid var(--green);
+}
+
+.alert-store {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  color: var(--text-bright);
+}
+
+.alert-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+}
+
+.alert-badge.high   { color: var(--red);    background: #ff313120; border: 1px solid var(--red); }
+.alert-badge.medium { color: var(--orange); background: #ff8c0020; border: 1px solid var(--orange); }
+.alert-badge.low    { color: var(--green);  background: #00ff9d10; border: 1px solid var(--green); }
+
+.alert-body { padding: 14px 16px; }
+
+.alert-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.alert-stat label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.alert-stat span {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+/* Anomaly table */
+.anomaly-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+.anomaly-table th {
+  color: var(--text-dim);
+  text-align: left;
+  padding: 4px 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.anomaly-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #1a254011;
+}
+.anomaly-table tr:hover td { background: #ffffff04; }
+
+.risk-tag-high   { color: var(--red);    font-weight: 700; }
+.risk-tag-medium { color: var(--orange); }
+.risk-tag-low    { color: var(--green);  }
+
+/* Score bar */
+.score-bar {
+  display: inline-block;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  vertical-align: middle;
+  margin-left: 6px;
+  box-shadow: 0 0 4px var(--cyan);
+}
+
+/* ─── Log panel ────────────────────────────────────────────── */
+.log-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  height: 160px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.8;
+}
+
+.log-panel::-webkit-scrollbar { width: 4px; }
+.log-panel::-webkit-scrollbar-track { background: transparent; }
+.log-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.log-line { display: block; }
+.log-time  { color: var(--text-dim); margin-right: 8px; }
+.log-info  { color: var(--cyan); }
+.log-warn  { color: var(--yellow); }
+.log-error { color: var(--red); }
+.log-ok    { color: var(--green); }
+
+/* ─── Privacy badge row ───────────────────────────────────── */
+.privacy-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.priv-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.priv-badge span { font-size: 0.85rem; }
+
+/* ─── Misc ─────────────────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.text-mono { font-family: var(--font-mono); }
+.text-dim  { color: var(--text-dim); }
+.text-sm   { font-size: 0.75rem; }
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; display: block; opacity: .4; }
+
+/* Round indicator dots */
+.rounds-dots {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.round-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all .3s;
+}
+
+.round-dot.done     { background: var(--cyan);  box-shadow: var(--glow-cyan); }
+.round-dot.current  { background: var(--yellow); animation: pulseGreen .8s infinite; }
+
+/* Flicker animation for title */
+@keyframes flicker {
+  0%,19%,21%,23%,25%,54%,56%,100% { opacity:1; }
+  20%,24%,55% { opacity:.4; }
+}
+
+.flicker { animation: flicker 8s infinite; }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">👻</div>
+      <div class="logo-text">
+        <h1 class="flicker">PHANTOMGUARD</h1>
+        <p>Federated Inventory Intelligence System v2.0</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <div class="badge badge-green" id="hdr-privacy">🔒 DATA LOCAL</div>
+      <div class="badge badge-cyan"  id="hdr-tfjs">TF.js READY</div>
+      <div class="badge badge-mag"   id="hdr-round">ROUND 0</div>
+    </div>
+  </header>
+
+  <!-- ── Main grid ───────────────────────────────────────────────── -->
+  <div class="grid-main">
+
+    <!-- ─── Left sidebar: Config ─────────────────────────────────── -->
+    <div>
+
+      <!-- Server config -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">Server Config</div>
+
+        <div class="field">
+          <label>Server URL (ngrok)</label>
+          <input type="text" id="serverUrl" placeholder="https://xxxx.ngrok-free.app" />
+        </div>
+
+        <div class="field">
+          <label>Store ID</label>
+          <input type="text" id="storeId" placeholder="S001" value="S001" />
+        </div>
+
+        <div class="field">
+          <label>Training Rounds</label>
+          <input type="number" id="numRounds" value="10" min="1" max="50" />
+        </div>
+
+        <div class="field">
+          <label>Epochs per Round</label>
+          <input type="number" id="epochsPerRound" value="20" min="5" max="100" />
+        </div>
+      </div>
+
+      <!-- Data upload -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">Data Upload</div>
+
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="csvFile" accept=".csv" />
+          <div class="dz-icon">📂</div>
+          <div class="dz-text"><strong>Drop CSV here</strong><br/>or click to browse</div>
+        </div>
+
+        <div id="fileInfo" class="text-mono text-sm text-dim" style="margin-top:10px; min-height:18px;"></div>
+
+        <hr class="divider" />
+
+        <!-- Privacy badges -->
+        <div class="privacy-row">
+          <div class="priv-badge"><span>🔒</span> CSV never leaves browser</div>
+          <div class="priv-badge"><span>⚡</span> Only weights transmitted</div>
+          <div class="priv-badge"><span>🛡️</span> FedAvg aggregation</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="panel">
+        <div class="panel-title">Controls</div>
+
+        <div class="status-bar">
+          <div class="status-dot dot-idle" id="statusDot"></div>
+          <span id="statusText">Idle — configure and upload CSV</span>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap" style="display:none;">
+          <div class="progress-label">
+            <span id="progressLabel">Training round 0…</span>
+            <span id="progressPct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnStart">▶ START FEDERATED TRAINING</button>
+        <button class="btn btn-danger"  id="btnStop" style="display:none;">⬛ STOP</button>
+
+        <hr class="divider" />
+
+        <!-- Round dots -->
+        <div class="text-mono text-dim" style="font-size:.65rem; letter-spacing:2px; text-transform:uppercase; margin-bottom:6px;">Round Progress</div>
+        <div class="rounds-dots" id="roundsDots"></div>
+      </div>
+
+    </div>
+
+    <!-- ─── Right: Dashboard ──────────────────────────────────────── -->
+    <div>
+
+      <!-- Stats row -->
+      <div class="stats-row" id="statsRow">
+        <div class="stat-card">
+          <div class="stat-value val-cyan"  id="statRound">0</div>
+          <div class="stat-label">Rounds</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value val-yellow" id="statAnomalies">—</div>
+          <div class="stat-label">Anomalies</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value val-mag"   id="statRate">—</div>
+          <div class="stat-label">Anomaly %</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value val-green" id="statImprove">—</div>
+          <div class="stat-label">Loss ↓</div>
+        </div>
+      </div>
+
+      <!-- Loss chart -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">Training Loss (Global Model)</div>
+        <canvas id="lossChart"></canvas>
+      </div>
+
+      <!-- Log -->
+      <div class="panel">
+        <div class="panel-title">System Log</div>
+        <div class="log-panel" id="logPanel"></div>
+      </div>
+
+    </div>
+
+    <!-- ─── Full-width: Alerts ────────────────────────────────────── -->
+    <div class="panel grid-full" id="alertsPanel">
+      <div class="panel-title">Phantom Inventory Alerts</div>
+      <div id="alertsContainer">
+        <div class="empty-state">
+          <span class="empty-icon">🔍</span>
+          Anomaly detection will run after training completes.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grid-main -->
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════════════════════════
+     JAVASCRIPT — Federated Learning Client
+     ══════════════════════════════════════════════════════════════════ -->
+<script>
+"use strict";
+
+// ─── Read ?server=... from URL ──────────────────────────────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const sv = params.get('server');
+  if (sv) document.getElementById('serverUrl').value = sv;
+})();
+
+// ─── State ──────────────────────────────────────────────────────────────────
+let running        = false;
+let stopRequested  = false;
+let model          = null;
+let scaler         = null;   // { min, range } per feature
+let trainingData   = null;   // Float32 2D array
+let labelMap       = null;   // rowIndex → { product_name, sku, ... }
+let labelCols      = [];     // detected label column names
+let numFeatures    = 0;
+let lossHistory    = [];
+let currentRound   = 0;
+let stopPoll       = null;
+
+const POLL_INTERVAL    = 3000;   // ms between server polls
+const ANOMALY_PCTL     = 98;     // percentile for threshold
+const ENCODING_DIM     = 2;
+
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const $serverUrl    = document.getElementById('serverUrl');
+const $storeId      = document.getElementById('storeId');
+const $numRounds    = document.getElementById('numRounds');
+const $epochsPR     = document.getElementById('epochsPerRound');
+const $csvFile      = document.getElementById('csvFile');
+const $dropzone     = document.getElementById('dropzone');
+const $fileInfo     = document.getElementById('fileInfo');
+const $statusDot    = document.getElementById('statusDot');
+const $statusText   = document.getElementById('statusText');
+const $btnStart     = document.getElementById('btnStart');
+const $btnStop      = document.getElementById('btnStop');
+const $progressWrap = document.getElementById('progressWrap');
+const $progressFill = document.getElementById('progressFill');
+const $progressLbl  = document.getElementById('progressLabel');
+const $progressPct  = document.getElementById('progressPct');
+const $roundsDots   = document.getElementById('roundsDots');
+const $statRound    = document.getElementById('statRound');
+const $statAnomalies= document.getElementById('statAnomalies');
+const $statRate     = document.getElementById('statRate');
+const $statImprove  = document.getElementById('statImprove');
+const $logPanel     = document.getElementById('logPanel');
+const $alertsCont   = document.getElementById('alertsContainer');
+const $hdrRound     = document.getElementById('hdr-round');
+const lossCanvas    = document.getElementById('lossChart');
+const lossCtx       = lossCanvas.getContext('2d');
+
+// ─── Logging ─────────────────────────────────────────────────────────────────
+function log(msg, type = 'info') {
+  const now = new Date().toLocaleTimeString('en-US', {hour12: false});
+  const line = document.createElement('span');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">[${now}]</span> <span class="log-${type}">${msg}</span>`;
+  $logPanel.appendChild(line);
+  $logPanel.scrollTop = $logPanel.scrollHeight;
+}
+
+// ─── Status ──────────────────────────────────────────────────────────────────
+function setStatus(msg, state = 'idle') {
+  $statusText.textContent = msg;
+  $statusDot.className = 'status-dot dot-' + state;
+}
+
+// ─── Progress ────────────────────────────────────────────────────────────────
+function setProgress(round, total) {
+  const pct = Math.round((round / total) * 100);
+  $progressWrap.style.display = 'block';
+  $progressFill.style.width   = pct + '%';
+  $progressLbl.textContent    = `Training round ${round} / ${total}`;
+  $progressPct.textContent    = pct + '%';
+}
+
+// ─── Round dots ──────────────────────────────────────────────────────────────
+function buildRoundDots(total) {
+  $roundsDots.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'round-dot';
+    d.id = 'dot-' + i;
+    $roundsDots.appendChild(d);
+  }
+}
+
+function markDot(idx, state) {
+  const d = document.getElementById('dot-' + idx);
+  if (d) d.className = 'round-dot ' + state;
+}
+
+// ─── Loss chart ───────────────────────────────────────────────────────────────
+function drawLossChart() {
+  const W = lossCanvas.offsetWidth;
+  const H = 200;
+  lossCanvas.width  = W;
+  lossCanvas.height = H;
+
+  const pad = { t: 16, r: 16, b: 30, l: 52 };
+  const cw  = W - pad.l - pad.r;
+  const ch  = H - pad.t - pad.b;
+
+  lossCtx.clearRect(0, 0, W, H);
+
+  // Background grid
+  lossCtx.strokeStyle = '#1a254044';
+  lossCtx.lineWidth   = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (ch / 4) * i;
+    lossCtx.beginPath();
+    lossCtx.moveTo(pad.l, y);
+    lossCtx.lineTo(pad.l + cw, y);
+    lossCtx.stroke();
+  }
+
+  if (lossHistory.length < 2) {
+    // placeholder text
+    lossCtx.fillStyle = '#4a608055';
+    lossCtx.font = '12px "Share Tech Mono"';
+    lossCtx.textAlign = 'center';
+    lossCtx.fillText('// awaiting training data //', pad.l + cw / 2, pad.t + ch / 2);
+    return;
+  }
+
+  const maxL = Math.max(...lossHistory) * 1.1;
+  const minL = Math.min(...lossHistory) * 0.9;
+
+  // Y axis labels
+  lossCtx.fillStyle = '#4a6080';
+  lossCtx.font = '10px "Share Tech Mono"';
+  lossCtx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const v = maxL - ((maxL - minL) / 4) * i;
+    const y = pad.t + (ch / 4) * i;
+    lossCtx.fillText(v.toFixed(5), pad.l - 6, y + 3);
+  }
+
+  // X axis labels
+  lossCtx.textAlign = 'center';
+  lossHistory.forEach((_, i) => {
+    const x = pad.l + (cw / (lossHistory.length - 1)) * i;
+    lossCtx.fillText(i + 1, x, H - 6);
+  });
+
+  // Gradient fill under curve
+  const toX = (i) => pad.l + (cw / (lossHistory.length - 1)) * i;
+  const toY = (v) => pad.t + ch - ((v - minL) / (maxL - minL)) * ch;
+
+  const grad = lossCtx.createLinearGradient(0, pad.t, 0, pad.t + ch);
+  grad.addColorStop(0, 'rgba(0,245,255,0.3)');
+  grad.addColorStop(1, 'rgba(0,245,255,0)');
+
+  lossCtx.beginPath();
+  lossCtx.moveTo(toX(0), pad.t + ch);
+  lossHistory.forEach((v, i) => lossCtx.lineTo(toX(i), toY(v)));
+  lossCtx.lineTo(toX(lossHistory.length - 1), pad.t + ch);
+  lossCtx.closePath();
+  lossCtx.fillStyle = grad;
+  lossCtx.fill();
+
+  // Line
+  lossCtx.beginPath();
+  lossCtx.strokeStyle = '#00f5ff';
+  lossCtx.lineWidth   = 2;
+  lossCtx.shadowBlur  = 8;
+  lossCtx.shadowColor = '#00f5ff';
+  lossHistory.forEach((v, i) => {
+    i === 0 ? lossCtx.moveTo(toX(i), toY(v)) : lossCtx.lineTo(toX(i), toY(v));
+  });
+  lossCtx.stroke();
+  lossCtx.shadowBlur = 0;
+
+  // Dots
+  lossHistory.forEach((v, i) => {
+    lossCtx.beginPath();
+    lossCtx.arc(toX(i), toY(v), 4, 0, Math.PI * 2);
+    lossCtx.fillStyle = '#00f5ff';
+    lossCtx.shadowBlur  = 10;
+    lossCtx.shadowColor = '#00f5ff';
+    lossCtx.fill();
+    lossCtx.shadowBlur = 0;
+  });
+}
+
+window.addEventListener('resize', drawLossChart);
+
+// ─── CSV parsing ─────────────────────────────────────────────────────────────
+// Label column keywords — these are preserved as product identifiers
+const LABEL_KEYWORDS = [
+  'product','item','sku','name','description','desc','title',
+  'product_id','product_name','item_id','item_name','barcode',
+  'code','category','brand','model','variant','upc','asin'
+];
+
+function isLabelCol(header, idx, rows) {
+  const h = header.toLowerCase();
+  // Matches a known label keyword
+  if (LABEL_KEYWORDS.some(k => h.includes(k))) return true;
+  // Mostly non-numeric (text) column
+  const numeric = rows.map(r => parseFloat(r[idx])).filter(v => !isNaN(v));
+  return numeric.length < rows.length * 0.3;
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) throw new Error('CSV too short');
+
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  const rows    = lines.slice(1).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g,'')));
+
+  const skipAlways = new Set(['store_id','Store_ID','date','Date']);
+
+  // Separate label cols (product identifiers) from numeric feature cols
+  const labelCols   = [];
+  const numericCols = [];
+
+  headers.forEach((h, idx) => {
+    if (skipAlways.has(h)) return;
+    if (isLabelCol(h, idx, rows)) {
+      labelCols.push({ name: h, idx });
+    } else {
+      const vals = rows.map(r => parseFloat(r[idx])).filter(v => !isNaN(v));
+      if (vals.length > rows.length * 0.5) numericCols.push(h);
+    }
+  });
+
+  if (numericCols.length < 1) throw new Error('Not enough numeric columns detected');
+
+  const features = numericCols.slice(0, 10);
+  const colIdxs  = features.map(f => headers.indexOf(f));
+
+  const matrix = rows.map(row => colIdxs.map(i => parseFloat(row[i]) || 0));
+
+  // Build label map: rowIndex → { col: value, ... }
+  const labelMap = rows.map(row => {
+    const obj = {};
+    labelCols.forEach(lc => { obj[lc.name] = row[lc.idx] || ''; });
+    return obj;
+  });
+
+  return { matrix, features, labelMap, labelCols: labelCols.map(l => l.name) };
+}
+
+// ─── Min-max scaler ───────────────────────────────────────────────────────────
+function fitScaler(matrix, nFeatures) {
+  const mins   = Array(nFeatures).fill(Infinity);
+  const maxs   = Array(nFeatures).fill(-Infinity);
+  for (const row of matrix) {
+    for (let j = 0; j < nFeatures; j++) {
+      if (row[j] < mins[j]) mins[j] = row[j];
+      if (row[j] > maxs[j]) maxs[j] = row[j];
+    }
+  }
+  const range = maxs.map((mx, i) => (mx - mins[i]) || 1);
+  return { mins, range };
+}
+
+function transform(matrix, sc) {
+  return matrix.map(row => row.map((v, j) => (v - sc.mins[j]) / sc.range[j]));
+}
+
+// ─── Build TF.js autoencoder ──────────────────────────────────────────────────
+function buildModel(inputDim) {
+  const enc = ENCODING_DIM;
+  const m = tf.sequential();
+  m.add(tf.layers.dense({ inputShape: [inputDim], units: enc * 2, activation: 'relu' }));
+  m.add(tf.layers.dense({ units: enc,     activation: 'relu' }));
+  m.add(tf.layers.dense({ units: enc * 2, activation: 'relu' }));
+  m.add(tf.layers.dense({ units: inputDim, activation: 'linear' }));
+  m.compile({ optimizer: tf.train.adam(0.001), loss: 'meanSquaredError' });
+  return m;
+}
+
+// ─── Weights serialisation (plain JSON) ──────────────────────────────────────
+function getWeights(m) {
+  return m.getWeights().map(t => Array.from(t.dataSync()).reduce((acc, v, i) => {
+    // Re-shape flat array into nested lists matching tensor shape
+    return acc;
+  }, null)).map(t => t); // placeholder — use helper below
+}
+
+// Proper nested-list serialisation
+function weightsToJSON(m) {
+  return m.getWeights().map(tensor => {
+    const shape = tensor.shape;
+    const flat  = Array.from(tensor.dataSync());
+    return reshapeFlat(flat, shape);
+  });
+}
+
+function reshapeFlat(flat, shape) {
+  if (shape.length === 1) return flat;
+  const subSize = shape.slice(1).reduce((a,b) => a*b, 1);
+  const result  = [];
+  for (let i = 0; i < shape[0]; i++) {
+    result.push(reshapeFlat(flat.slice(i * subSize, (i + 1) * subSize), shape.slice(1)));
+  }
+  return result;
+}
+
+// Flat list → TF tensors
+function jsonToWeights(json, model) {
+  const shapes = model.getWeights().map(t => t.shape);
+  return json.map((arr, i) => {
+    const flat = flattenArray(arr);
+    return tf.tensor(flat, shapes[i]);
+  });
+}
+
+function flattenArray(arr) {
+  if (!Array.isArray(arr)) return [arr];
+  return arr.reduce((acc, v) => acc.concat(flattenArray(v)), []);
+}
+
+// ─── Server calls ──────────────────────────────────────────────────────────────
+async function apiCall(endpoint, options = {}) {
+  const base = $serverUrl.value.trim().replace(/\/$/, '');
+  if (!base) throw new Error('No server URL set');
+  const res  = await fetch(base + endpoint, options);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function register(storeId, dataSize) {
+  return apiCall('/register', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ store_id: storeId, data_size: dataSize }),
+  });
+}
+
+async function getModel() {
+  const storeId = $storeId.value.trim();
+  return apiCall(`/get_model?store_id=${storeId}`);
+}
+
+async function submitUpdate(storeId, round, weights, dataSize, loss) {
+  return apiCall('/submit_update', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      store_id:  storeId,
+      round,
+      weights,
+      data_size: dataSize,
+      loss,
+    }),
+  });
+}
+
+// ─── Anomaly detection ────────────────────────────────────────────────────────
+async function detectAnomalies(normData) {
+  const xs    = tf.tensor2d(normData);
+  const preds = model.predict(xs);
+  const mse   = tf.mean(tf.square(tf.sub(xs, preds)), 1);
+  const arr   = Array.from(await mse.data());
+  xs.dispose(); preds.dispose(); mse.dispose();
+
+  // 98th percentile threshold
+  const sorted    = [...arr].sort((a, b) => a - b);
+  const threshold = sorted[Math.floor(arr.length * ANOMALY_PCTL / 100)];
+
+  const anomalies = [];
+  arr.forEach((score, idx) => {
+    if (score > threshold) {
+      const risk   = score > threshold * 1.4 ? 'HIGH' : 'MEDIUM';
+      const labels = labelMap ? labelMap[idx] : {};
+
+      // Build a display name from available label columns
+      // Priority: product_name / item_name / name > sku / product_id / item_id / code > first label col
+      const nameKeys = ['product_name','item_name','name','title','description','desc','brand','model','variant','category'];
+      const idKeys   = ['sku','product_id','item_id','barcode','upc','asin','code','id'];
+
+      let displayName = '';
+      let displayId   = '';
+
+      for (const k of nameKeys) {
+        const val = labels[k] || labels[k.replace('_','')]  // try without underscore too
+                 || Object.entries(labels).find(([key]) => key.toLowerCase() === k)?.[1];
+        if (val) { displayName = val; break; }
+      }
+      if (!displayName) {
+        // Fall back to first label col value
+        const firstKey = Object.keys(labels)[0];
+        if (firstKey) displayName = labels[firstKey];
+      }
+
+      for (const k of idKeys) {
+        const val = labels[k]
+                 || Object.entries(labels).find(([key]) => key.toLowerCase() === k)?.[1];
+        if (val) { displayId = val; break; }
+      }
+      if (!displayId && Object.keys(labels).length > 1) {
+        // Second label col as fallback ID
+        const secondKey = Object.keys(labels)[1];
+        if (secondKey) displayId = labels[secondKey];
+      }
+
+      anomalies.push({
+        row:         idx + 1,
+        score:       parseFloat(score.toFixed(6)),
+        risk,
+        labels,                          // full label object
+        displayName: displayName || `Row #${idx + 1}`,
+        displayId:   displayId   || '',
+      });
+    }
+  });
+
+  anomalies.sort((a, b) => b.score - a.score);
+
+  const rate      = (anomalies.length / arr.length) * 100;
+  const riskLevel = rate > 3 ? 'HIGH' : rate > 1 ? 'MEDIUM' : 'LOW';
+
+  return {
+    total:        arr.length,
+    anomalies:    anomalies.length,
+    rate:         parseFloat(rate.toFixed(2)),
+    risk_level:   riskLevel,
+    anomaly_list: anomalies.slice(0, 100),
+    threshold:    parseFloat(threshold.toFixed(6)),
+  };
+}
+
+// ─── Render alert card ────────────────────────────────────────────────────────
+function renderAlertCard(result) {
+  const storeId  = $storeId.value.trim();
+  const rl       = result.risk_level.toLowerCase();
+  const hasLabels = result.anomaly_list.length > 0 && result.anomaly_list[0].displayName !== `Row #${result.anomaly_list[0].row}`;
+  const riskColor = rl === 'high' ? '#ff3131' : rl === 'medium' ? '#ff8c00' : '#00ff9d';
+  const cardId    = 'card-' + storeId;
+
+  // Build table rows (all anomalies, searchable via JS)
+  function buildRows(list) {
+    if (list.length === 0) return `<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:20px">No results</td></tr>`;
+    return list.map(a => {
+      const barW       = Math.min(60, Math.round((a.score / (result.anomaly_list[0]?.score || 1)) * 60));
+      const riskClass  = 'risk-tag-' + a.risk.toLowerCase();
+      const nameCell   = hasLabels
+        ? `<td class="product-name-cell">
+            <span class="prod-name">${escHtml(a.displayName)}</span>
+            ${a.displayId ? `<span class="prod-id">${escHtml(a.displayId)}</span>` : ''}
+           </td>`
+        : `<td style="color:var(--text-dim)">Row #${a.row}</td>`;
+
+      // Extra label columns (beyond name/id)
+      const extraLabels = Object.entries(a.labels || {})
+        .filter(([k,v]) => v && v !== a.displayName && v !== a.displayId)
+        .slice(0, 2)
+        .map(([k,v]) => `<span class="extra-label">${escHtml(k)}: ${escHtml(v)}</span>`)
+        .join('');
+
+      return `<tr data-name="${escAttr(a.displayName)}" data-id="${escAttr(a.displayId)}" data-risk="${a.risk}">
+        ${nameCell}
+        <td style="color:var(--text-dim);font-size:.65rem">${a.row}</td>
+        <td>
+          <span style="color:var(--text-bright)">${a.score.toFixed(5)}</span>
+          <div class="score-bar" style="width:${barW}px;display:inline-block;vertical-align:middle;margin-left:6px"></div>
+        </td>
+        <td><span class="${riskClass}">${a.risk}</span></td>
+        <td style="font-size:.6rem">${extraLabels}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  const div = document.createElement('div');
+  div.className = 'alert-card';
+  div.id = cardId;
+
+  const highCount   = result.anomaly_list.filter(a => a.risk === 'HIGH').length;
+  const mediumCount = result.anomaly_list.filter(a => a.risk === 'MEDIUM').length;
+
+  div.innerHTML = `
+    <div class="alert-card-header risk-${rl}">
+      <div>
+        <span class="alert-store">${storeId}</span>
+        <span style="font-family:var(--font-mono);font-size:.6rem;color:var(--text-dim);margin-left:12px">
+          ${result.total.toLocaleString()} items scanned
+        </span>
+      </div>
+      <span class="alert-badge ${rl}">${result.risk_level} RISK</span>
+    </div>
+
+    <div class="alert-body">
+      <!-- Summary stats -->
+      <div class="alert-stats" style="grid-template-columns:repeat(5,1fr)">
+        <div class="alert-stat">
+          <label>Total Alerts</label>
+          <span style="color:${riskColor}">${result.anomalies}</span>
+        </div>
+        <div class="alert-stat">
+          <label>🔴 High</label>
+          <span style="color:var(--red)">${highCount}</span>
+        </div>
+        <div class="alert-stat">
+          <label>🟠 Medium</label>
+          <span style="color:var(--orange)">${mediumCount}</span>
+        </div>
+        <div class="alert-stat">
+          <label>Anomaly Rate</label>
+          <span>${result.rate}%</span>
+        </div>
+        <div class="alert-stat">
+          <label>Threshold</label>
+          <span style="color:var(--text-dim)">${result.threshold}</span>
+        </div>
+      </div>
+
+      <!-- Search + filter bar -->
+      <div class="search-bar-row">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            class="search-input"
+            id="search-${storeId}"
+            placeholder="Search product name, SKU, ID…"
+            oninput="filterTable('${storeId}')"
+          />
+        </div>
+        <div class="filter-btns">
+          <button class="filter-btn active" data-filter="ALL"    onclick="setFilter('${storeId}','ALL',this)">All (${result.anomalies})</button>
+          <button class="filter-btn"        data-filter="HIGH"   onclick="setFilter('${storeId}','HIGH',this)">🔴 High (${highCount})</button>
+          <button class="filter-btn"        data-filter="MEDIUM" onclick="setFilter('${storeId}','MEDIUM',this)">🟠 Medium (${mediumCount})</button>
+        </div>
+      </div>
+
+      <!-- Product table -->
+      <div class="table-wrap">
+        <table class="anomaly-table" id="tbl-${storeId}">
+          <thead>
+            <tr>
+              <th>${hasLabels ? 'Product' : 'Item'}</th>
+              <th>Row</th>
+              <th>Error Score</th>
+              <th>Risk</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-${storeId}">
+            ${buildRows(result.anomaly_list)}
+          </tbody>
+        </table>
+      </div>
+      <div id="tbl-count-${storeId}" style="margin-top:6px;font-family:var(--font-mono);font-size:.62rem;color:var(--text-dim)">
+        Showing ${result.anomaly_list.length} of ${result.anomalies} phantom items
+      </div>
+    </div>`;
+
+  // Store full list on the card element for filtering
+  div._allAnomalies = result.anomaly_list;
+  div._hasLabels    = hasLabels;
+  div._buildRows    = buildRows;
+
+  return div;
+}
+
+// ─── Table search / filter ────────────────────────────────────────────────────
+function escHtml(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s)  { return String(s).replace(/"/g,'&quot;'); }
+
+function getCardData(storeId) {
+  const card = document.getElementById('card-' + storeId);
+  return card ? { card, list: card._allAnomalies, buildRows: card._buildRows } : null;
+}
+
+window._activeFilter = {};
+
+function filterTable(storeId) {
+  const data = getCardData(storeId);
+  if (!data) return;
+  const query  = (document.getElementById('search-' + storeId)?.value || '').toLowerCase();
+  const filter = window._activeFilter[storeId] || 'ALL';
+
+  const filtered = data.list.filter(a => {
+    const matchRisk = filter === 'ALL' || a.risk === filter;
+    const matchText = !query
+      || a.displayName.toLowerCase().includes(query)
+      || a.displayId.toLowerCase().includes(query)
+      || String(a.row).includes(query)
+      || Object.values(a.labels || {}).some(v => String(v).toLowerCase().includes(query));
+    return matchRisk && matchText;
+  });
+
+  const tbody = document.getElementById('tbody-' + storeId);
+  const count = document.getElementById('tbl-count-' + storeId);
+  if (tbody) tbody.innerHTML = data.buildRows(filtered);
+  if (count) count.textContent = `Showing ${filtered.length} of ${data.list.length} phantom items`;
+}
+
+function setFilter(storeId, filter, btn) {
+  window._activeFilter[storeId] = filter;
+  // Update button styles
+  btn.closest('.filter-btns').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterTable(storeId);
+}
+
+// ─── Main training loop ───────────────────────────────────────────────────────
+async function startTraining() {
+  const serverUrl  = $serverUrl.value.trim();
+  const storeId    = $storeId.value.trim();
+  const numRounds  = parseInt($numRounds.value);
+  const epochsPR   = parseInt($epochsPR.value);
+
+  if (!serverUrl)    return alert('Enter server URL');
+  if (!storeId)      return alert('Enter store ID');
+  if (!trainingData) return alert('Upload a CSV first');
+
+  running       = true;
+  stopRequested = false;
+  lossHistory   = [];
+  currentRound  = 0;
+
+  $btnStart.style.display = 'none';
+  $btnStop.style.display  = '';
+  $alertsCont.innerHTML = '<div class="empty-state"><span class="empty-icon">⏳</span>Training in progress…</div>';
+
+  buildRoundDots(numRounds);
+  setStatus('Registering with server…', 'running');
+  log(`Registering as ${storeId} | ${trainingData.length} samples | ${numFeatures} features`);
+
+  try {
+    await register(storeId, trainingData.length);
+    log('Registered ✓', 'ok');
+  } catch (e) {
+    log('Registration failed: ' + e.message, 'error');
+    setStatus('Registration failed', 'error');
+    resetUI(); return;
+  }
+
+  // Build model
+  model = buildModel(numFeatures);
+  log(`Model built: [${numFeatures}→${ENCODING_DIM*2}→${ENCODING_DIM}→${ENCODING_DIM*2}→${numFeatures}]`);
+
+  // Normalise data once
+  scaler = fitScaler(trainingData, numFeatures);
+  const normData = transform(trainingData, scaler);
+  const xs = tf.tensor2d(normData);
+
+  let lastServerRound = -1;
+  let localRound      = 0;
+  const startLoss     = [];
+
+  // ── Federated loop ──────────────────────────────────────────
+  for (let rnd = 0; rnd < numRounds; rnd++) {
+    if (stopRequested) break;
+
+    setStatus(`Round ${rnd + 1}/${numRounds} — polling server…`, 'running');
+    setProgress(rnd + 1, numRounds);
+    markDot(rnd, 'current');
+
+    // Poll until server has a new global model
+    let serverData = null;
+    for (let attempt = 0; attempt < 60; attempt++) {   // up to 3 min
+      if (stopRequested) break;
+      try {
+        serverData = await getModel();
+        if (serverData.round > lastServerRound) break;
+      } catch (e) {
+        log(`Polling error: ${e.message}`, 'warn');
+      }
+      await sleep(POLL_INTERVAL);
+    }
+
+    if (!serverData || stopRequested) break;
+
+    // Apply global weights
+    try {
+      const tensors = jsonToWeights(serverData.weights, model);
+      model.setWeights(tensors);
+      tensors.forEach(t => t.dispose());
+      lastServerRound = serverData.round;
+      log(`Round ${rnd+1} — global model received (server round ${serverData.round})`);
+    } catch (e) {
+      log('Weight application failed: ' + e.message, 'error');
+    }
+
+    // Local training
+    setStatus(`Round ${rnd + 1}/${numRounds} — training locally…`, 'running');
+    let finalLoss = 0;
+    await model.fit(xs, xs, {
+      epochs:          epochsPR,
+      batchSize:       32,
+      validationSplit: 0.1,
+      verbose:         0,
+      callbacks: {
+        onEpochEnd: (epoch, logs) => { finalLoss = logs.loss; }
+      }
+    });
+
+    lossHistory.push(parseFloat(finalLoss.toFixed(6)));
+    if (startLoss.length === 0) startLoss.push(finalLoss);
+    log(`Round ${rnd+1} done — loss: ${finalLoss.toFixed(6)}`, 'ok');
+    drawLossChart();
+    $statRound.textContent = rnd + 1;
+    $hdrRound.textContent  = `ROUND ${rnd + 1}`;
+
+    // Submit update
+    try {
+      const wJson = weightsToJSON(model);
+      await submitUpdate(storeId, serverData.round, wJson, trainingData.length, finalLoss);
+      log(`Round ${rnd+1} — weights submitted`);
+    } catch (e) {
+      log('Submit failed: ' + e.message, 'warn');
+    }
+
+    markDot(rnd, 'done');
+    localRound++;
+
+    // Stats
+    if (lossHistory.length >= 2) {
+      const improve = ((lossHistory[0] - lossHistory[lossHistory.length - 1]) / lossHistory[0] * 100).toFixed(1);
+      $statImprove.textContent = improve + '%';
+    }
+  }
+
+  xs.dispose();
+
+  if (stopRequested) {
+    log('Training stopped by user.', 'warn');
+    setStatus('Stopped', 'error');
+  } else {
+    log('Training complete — running anomaly detection…', 'info');
+    setStatus('Detecting phantom inventory…', 'running');
+
+    const result = await detectAnomalies(normData);
+    log(`Anomaly detection done: ${result.anomalies} anomalies (${result.rate}%) — ${result.risk_level} RISK`,
+        result.risk_level === 'HIGH' ? 'error' : result.risk_level === 'MEDIUM' ? 'warn' : 'ok');
+
+    $statAnomalies.textContent = result.anomalies;
+    $statRate.textContent      = result.rate + '%';
+
+    // Render alert card
+    $alertsCont.innerHTML = '';
+    const card = renderAlertCard(result);
+    $alertsCont.appendChild(card);
+
+    setStatus('Complete — phantom inventory detected ✓', 'done');
+  }
+
+  drawLossChart();
+  resetUI(false);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function resetUI(clearBtn = true) {
+  running = false;
+  if (clearBtn) {
+    $btnStart.style.display = '';
+    $btnStop.style.display  = 'none';
+  } else {
+    $btnStart.style.display = '';
+    $btnStop.style.display  = 'none';
+  }
+}
+
+// ─── File upload ──────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file || !file.name.endsWith('.csv')) {
+    $fileInfo.textContent = '⚠ Please select a .csv file';
+    return;
+  }
+  $fileInfo.textContent = '⏳ Parsing…';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const { matrix, features, labelMap: lm, labelCols: lc } = parseCSV(e.target.result);
+      trainingData = matrix;
+      numFeatures  = features.length;
+      labelMap     = lm;
+      labelCols    = lc;
+      const labelInfo = lc.length ? ` | labels: <span style="color:var(--magenta)">${lc.join(', ')}</span>` : '';
+      $fileInfo.innerHTML = `✅ <strong style="color:var(--cyan)">${file.name}</strong> — ${matrix.length.toLocaleString()} rows × ${features.length} features${labelInfo}`;
+      log(`CSV loaded: ${file.name} (${matrix.length} rows, features: ${features.join(', ')}${lc.length ? ', labels: ' + lc.join(', ') : ''})`, 'ok');
+    } catch (err) {
+      $fileInfo.textContent = '❌ ' + err.message;
+      log('CSV parse error: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+$csvFile.addEventListener('change', e => handleFile(e.target.files[0]));
+
+$dropzone.addEventListener('dragover',  e => { e.preventDefault(); $dropzone.classList.add('drag-over'); });
+$dropzone.addEventListener('dragleave', () => $dropzone.classList.remove('drag-over'));
+$dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  $dropzone.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// ─── Button handlers ──────────────────────────────────────────────────────────
+$btnStart.addEventListener('click', startTraining);
+$btnStop.addEventListener('click',  () => { stopRequested = true; log('Stop requested…', 'warn'); });
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+log('PhantomGuard client initialised. TF.js version: ' + tf.version.tfjs, 'ok');
+drawLossChart();
+
+// Check for pre-filled server URL
+if ($serverUrl.value) log('Server URL pre-filled from URL params: ' + $serverUrl.value);
+</script>
+
+</body>
+</html>
