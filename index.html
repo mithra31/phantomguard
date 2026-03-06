@@ -1453,6 +1453,7 @@ async function startTraining() {
 
   let lastServerRound = -1;
   let localRound      = 0;
+  let expectedServerRound = 0; // track what round we expect from server
   const startLoss     = [];
 
   // ── Federated loop ──────────────────────────────────────────
@@ -1463,13 +1464,20 @@ async function startTraining() {
     setProgress(rnd + 1, numRounds);
     markDot(rnd, 'current');
 
-    // Poll until server has a new global model
+    // Poll until server has advanced to the expected round
     let serverData = null;
-    for (let attempt = 0; attempt < 60; attempt++) {   // up to 3 min
+    log(`Round ${rnd+1} — waiting for server to reach round ${expectedServerRound}...`);
+    for (let attempt = 0; attempt < 120; attempt++) {   // up to 6 min
       if (stopRequested) break;
       try {
         serverData = await getModel();
-        if (serverData.round > lastServerRound) break;
+        if (serverData.round >= expectedServerRound) {
+          log(`Server at round ${serverData.round} ✓`, 'ok');
+          break;
+        } else {
+          if (attempt % 5 === 0)
+            log(`Waiting for other store... (${attempt * 3}s)`, 'warn');
+        }
       } catch (e) {
         log(`Polling error: ${e.message}`, 'warn');
       }
@@ -1485,6 +1493,7 @@ async function startTraining() {
       tensors.forEach(t => t.dispose());
       lastServerRound = serverData.round;
       log(`Round ${rnd+1} — global model received (server round ${serverData.round})`);
+      expectedServerRound = serverData.round + 1; // next round we expect server to be at
     } catch (e) {
       log('Weight application failed: ' + e.message, 'error');
     }
@@ -1662,5 +1671,4 @@ autoDetectServer();
 </script>
 
 </body>
-
 </html>
