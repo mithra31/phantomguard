@@ -1021,7 +1021,7 @@ function parseCSV(text) {
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
   const rows    = lines.slice(1).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g,'')));
 
-  const skipAlways = new Set(['store_id','Store_ID','date','Date']);
+  const skipAlways = new Set(['store_id','Store_ID','date','Date','phantom_flag','is_phantom']);
 
   // Separate label cols (product identifiers) from numeric feature cols
   const labelCols   = [];
@@ -1176,9 +1176,7 @@ async function detectAnomalies(normData) {
   const anomalies = [];
   arr.forEach((score, idx) => {
     if (score > threshold) {
-      // Only flag HIGH risk items (score > 1.4x threshold)
       const risk   = score > threshold * 1.4 ? 'HIGH' : 'MEDIUM';
-      if (risk !== 'HIGH') return; // skip MEDIUM items
       const labels = labelMap ? labelMap[idx] : {};
 
       // Build a display name from available label columns
@@ -1232,7 +1230,7 @@ async function detectAnomalies(normData) {
     anomalies:    anomalies.length,
     rate:         parseFloat(rate.toFixed(2)),
     risk_level:   riskLevel,
-    anomaly_list: anomalies.slice(0, 200),  // all HIGH risk items
+    anomaly_list: anomalies.slice(0, 100),
     threshold:    parseFloat(threshold.toFixed(6)),
   };
 }
@@ -1335,7 +1333,8 @@ function renderAlertCard(result) {
         </div>
         <div class="filter-btns">
           <button class="filter-btn active" data-filter="ALL"    onclick="setFilter('${storeId}','ALL',this)">All (${result.anomalies})</button>
-          <button class="filter-btn active" data-filter="HIGH"   onclick="setFilter('${storeId}','HIGH',this)">🔴 High Risk (${highCount})</button>
+          <button class="filter-btn"        data-filter="HIGH"   onclick="setFilter('${storeId}','HIGH',this)">🔴 High (${highCount})</button>
+          <button class="filter-btn"        data-filter="MEDIUM" onclick="setFilter('${storeId}','MEDIUM',this)">🟠 Medium (${mediumCount})</button>
         </div>
       </div>
 
@@ -1443,6 +1442,31 @@ async function startTraining() {
     resetUI(); return;
   }
 
+  // ── Wait for all stores to connect before starting ─────────
+  log('Waiting for all stores to register with server...');
+  setStatus('Waiting for other store to connect...', 'running');
+  let allReady = false;
+  for (let w = 0; w < 60; w++) {
+    try {
+      const r = await apiCall('/ready');
+      if (r.ready) {
+        log(`All ${r.registered} stores connected ✓ (${r.stores.join(', ')})`, 'ok');
+        setStatus('All stores connected — starting training!', 'done');
+        allReady = true;
+        break;
+      } else {
+        if (w % 3 === 0)
+          log(`${r.registered}/${r.required} stores connected — waiting for others...`, 'warn');
+      }
+    } catch(e) {
+      log(`Server check failed: ${e.message}`, 'warn');
+    }
+    await sleep(3000);
+  }
+  if (!allReady) {
+    log('Timeout waiting for stores — starting anyway', 'warn');
+  }
+
   // Build model
   model = buildModel(numFeatures);
   log(`Model built: [${numFeatures}→${ENCODING_DIM*2}→${ENCODING_DIM}→${ENCODING_DIM*2}→${numFeatures}]`);
@@ -1454,6 +1478,7 @@ async function startTraining() {
 
   let lastServerRound = -1;
   let localRound      = 0;
+  let expectedServerRound = 0; // track what round we expect from server
   const startLoss     = [];
 
   // ── Federated loop ──────────────────────────────────────────
@@ -1464,13 +1489,20 @@ async function startTraining() {
     setProgress(rnd + 1, numRounds);
     markDot(rnd, 'current');
 
-    // Poll until server has a new global model
+    // Poll until server has advanced to the expected round
     let serverData = null;
-    for (let attempt = 0; attempt < 60; attempt++) {   // up to 3 min
+    log(`Round ${rnd+1} — waiting for server round ${expectedServerRound}...`);
+    for (let attempt = 0; attempt < 120; attempt++) {   // up to 6 min
       if (stopRequested) break;
       try {
         serverData = await getModel();
-        if (serverData.round >= localRound) break;
+        if (serverData.round >= expectedServerRound) {
+          log(`Server advanced to round ${serverData.round} ✓`, 'ok');
+          break;
+        } else {
+          if (attempt % 4 === 0)
+            log(`Round ${rnd+1} — waiting for other store to submit... (${attempt * 3}s)`, 'warn');
+        }
       } catch (e) {
         log(`Polling error: ${e.message}`, 'warn');
       }
@@ -1486,6 +1518,7 @@ async function startTraining() {
       tensors.forEach(t => t.dispose());
       lastServerRound = serverData.round;
       log(`Round ${rnd+1} — global model received (server round ${serverData.round})`);
+      expectedServerRound = serverData.round + 1; // next round we expect server to be at
     } catch (e) {
       log('Weight application failed: ' + e.message, 'error');
     }
