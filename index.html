@@ -1176,7 +1176,9 @@ async function detectAnomalies(normData) {
   const anomalies = [];
   arr.forEach((score, idx) => {
     if (score > threshold) {
+      // Only flag HIGH risk items (score > 1.4x threshold)
       const risk   = score > threshold * 1.4 ? 'HIGH' : 'MEDIUM';
+      if (risk !== 'HIGH') return; // skip MEDIUM items
       const labels = labelMap ? labelMap[idx] : {};
 
       // Build a display name from available label columns
@@ -1230,7 +1232,7 @@ async function detectAnomalies(normData) {
     anomalies:    anomalies.length,
     rate:         parseFloat(rate.toFixed(2)),
     risk_level:   riskLevel,
-    anomaly_list: anomalies.slice(0, 100),
+    anomaly_list: anomalies.slice(0, 200),  // all HIGH risk items
     threshold:    parseFloat(threshold.toFixed(6)),
   };
 }
@@ -1333,8 +1335,7 @@ function renderAlertCard(result) {
         </div>
         <div class="filter-btns">
           <button class="filter-btn active" data-filter="ALL"    onclick="setFilter('${storeId}','ALL',this)">All (${result.anomalies})</button>
-          <button class="filter-btn"        data-filter="HIGH"   onclick="setFilter('${storeId}','HIGH',this)">🔴 High (${highCount})</button>
-          <button class="filter-btn"        data-filter="MEDIUM" onclick="setFilter('${storeId}','MEDIUM',this)">🟠 Medium (${mediumCount})</button>
+          <button class="filter-btn active" data-filter="HIGH"   onclick="setFilter('${storeId}','HIGH',this)">🔴 High Risk (${highCount})</button>
         </div>
       </div>
 
@@ -1453,7 +1454,6 @@ async function startTraining() {
 
   let lastServerRound = -1;
   let localRound      = 0;
-  let expectedServerRound = 0; // track what round we expect from server
   const startLoss     = [];
 
   // ── Federated loop ──────────────────────────────────────────
@@ -1464,20 +1464,13 @@ async function startTraining() {
     setProgress(rnd + 1, numRounds);
     markDot(rnd, 'current');
 
-    // Poll until server has advanced to the expected round
+    // Poll until server has a new global model
     let serverData = null;
-    log(`Round ${rnd+1} — waiting for server to reach round ${expectedServerRound}...`);
-    for (let attempt = 0; attempt < 120; attempt++) {   // up to 6 min
+    for (let attempt = 0; attempt < 60; attempt++) {   // up to 3 min
       if (stopRequested) break;
       try {
         serverData = await getModel();
-        if (serverData.round >= expectedServerRound) {
-          log(`Server at round ${serverData.round} ✓`, 'ok');
-          break;
-        } else {
-          if (attempt % 5 === 0)
-            log(`Waiting for other store... (${attempt * 3}s)`, 'warn');
-        }
+        if (serverData.round >= localRound) break;
       } catch (e) {
         log(`Polling error: ${e.message}`, 'warn');
       }
@@ -1493,7 +1486,6 @@ async function startTraining() {
       tensors.forEach(t => t.dispose());
       lastServerRound = serverData.round;
       log(`Round ${rnd+1} — global model received (server round ${serverData.round})`);
-      expectedServerRound = serverData.round + 1; // next round we expect server to be at
     } catch (e) {
       log('Weight application failed: ' + e.message, 'error');
     }
