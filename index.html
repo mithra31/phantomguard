@@ -1445,26 +1445,28 @@ async function startTraining() {
   // ── Wait for all stores to connect before starting ─────────
   log('Waiting for all stores to register with server...');
   setStatus('Waiting for other store to connect...', 'running');
+  // Poll /ready until all stores connected
   let allReady = false;
-  for (let w = 0; w < 60; w++) {
+  for (let w = 0; w < 120; w++) {
     try {
-      const r = await apiCall('/ready');
+      const base = $serverUrl.value.trim().replace(/\/$/, '');
+      const res  = await fetch(base + '/ready');
+      const r    = await res.json();
+      log(`Stores connected: ${r.registered}/${r.required} — ${r.stores.join(', ') || 'none yet'}`,
+          r.ready ? 'ok' : 'warn');
       if (r.ready) {
-        log(`All ${r.registered} stores connected ✓ (${r.stores.join(', ')})`, 'ok');
-        setStatus('All stores connected — starting training!', 'done');
+        log(`✅ All ${r.registered} stores ready — starting federated training!`, 'ok');
+        setStatus('All stores connected — starting!', 'done');
         allReady = true;
         break;
-      } else {
-        if (w % 3 === 0)
-          log(`${r.registered}/${r.required} stores connected — waiting for others...`, 'warn');
       }
     } catch(e) {
-      log(`Server check failed: ${e.message}`, 'warn');
+      log(`Ready check error: ${e.message}`, 'warn');
     }
-    await sleep(3000);
+    await sleep(2000);
   }
   if (!allReady) {
-    log('Timeout waiting for stores — starting anyway', 'warn');
+    log('⚠️ Timeout — starting with available stores', 'warn');
   }
 
   // Build model
