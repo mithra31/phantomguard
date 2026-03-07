@@ -832,7 +832,7 @@ let stopPoll       = null;
 
 const POLL_INTERVAL    = 3000;   // ms between server polls
 const ANOMALY_PCTL     = 98;     // percentile for threshold
-const ENCODING_DIM     = 2;
+const ENCODING_DIM     = 6;  // must match server app.py ENCODING_DIM
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const $serverUrl    = document.getElementById('serverUrl');
@@ -1129,14 +1129,11 @@ function flattenArray(arr) {
 async function apiCall(endpoint, options = {}) {
   const base = $serverUrl.value.trim().replace(/\/$/, '');
   if (!base) throw new Error('No server URL set');
-  // Add ngrok header to bypass browser warning interstitial page
   options.headers = {
-    ...( options.headers || {}),
+    ...(options.headers || {}),
     'ngrok-skip-browser-warning': 'true',
-    'Content-Type': options.body ? 'application/json' : undefined,
   };
-  // Remove undefined headers
-  Object.keys(options.headers).forEach(k => options.headers[k] === undefined && delete options.headers[k]);
+  if (options.body) options.headers['Content-Type'] = 'application/json';
   const res  = await fetch(base + endpoint, options);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -1674,9 +1671,7 @@ async function autoDetectServer() {
   // Priority 2: fetch config.json from same GitHub Pages origin
   log('Auto-detecting server URL from config.json…');
   try {
-    const res  = await fetch('./config.json?t=' + Date.now(), {
-      headers: { 'ngrok-skip-browser-warning': 'true' }
-    });
+    const res  = await fetch('./config.json?t=' + Date.now());
     const data = await res.json();
     if (data.server_url && data.status === 'online') {
       $serverUrl.value = data.server_url;
