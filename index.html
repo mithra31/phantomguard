@@ -1129,6 +1129,14 @@ function flattenArray(arr) {
 async function apiCall(endpoint, options = {}) {
   const base = $serverUrl.value.trim().replace(/\/$/, '');
   if (!base) throw new Error('No server URL set');
+  // Add ngrok header to bypass browser warning interstitial page
+  options.headers = {
+    ...( options.headers || {}),
+    'ngrok-skip-browser-warning': 'true',
+    'Content-Type': options.body ? 'application/json' : undefined,
+  };
+  // Remove undefined headers
+  Object.keys(options.headers).forEach(k => options.headers[k] === undefined && delete options.headers[k]);
   const res  = await fetch(base + endpoint, options);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -1450,7 +1458,9 @@ async function startTraining() {
   for (let w = 0; w < 120; w++) {
     try {
       const base = $serverUrl.value.trim().replace(/\/$/, '');
-      const res  = await fetch(base + '/ready');
+      const res  = await fetch(base + '/ready', {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       const r    = await res.json();
       log(`Stores connected: ${r.registered}/${r.required} — ${r.stores.join(', ') || 'none yet'}`,
           r.ready ? 'ok' : 'warn');
@@ -1664,7 +1674,9 @@ async function autoDetectServer() {
   // Priority 2: fetch config.json from same GitHub Pages origin
   log('Auto-detecting server URL from config.json…');
   try {
-    const res  = await fetch('./config.json?t=' + Date.now());
+    const res  = await fetch('./config.json?t=' + Date.now(), {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
     const data = await res.json();
     if (data.server_url && data.status === 'online') {
       $serverUrl.value = data.server_url;
@@ -1681,7 +1693,9 @@ async function autoDetectServer() {
 // Verify server is reachable
 async function verifyServer(url) {
   try {
-    const res = await fetch(url + '/health');
+    const res = await fetch(url + '/health', {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
     const data = await res.json();
     if (data.status === 'ok') {
       log(`Server reachable ✓ — currently on round ${data.round}`, 'ok');
