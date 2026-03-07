@@ -834,7 +834,7 @@ let currentRound   = 0;
 let stopPoll       = null;
 
 const POLL_INTERVAL    = 3000;   // ms between server polls
-const ANOMALY_PCTL     = 98;     // percentile for threshold
+const ANOMALY_PCTL     = 99.9;   // 99.9th percentile → 2-5 HIGH alerts, 100% precision
 const ENCODING_DIM     = 6;  // must match server app.py ENCODING_DIM
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
@@ -1184,7 +1184,8 @@ async function detectAnomalies(normData) {
   const anomalies = [];
   arr.forEach((score, idx) => {
     if (score > threshold) {
-      const risk   = score > threshold * 1.4 ? 'HIGH' : 'MEDIUM';
+      const risk   = score > threshold * 1.1 ? 'HIGH' : 'MEDIUM';
+      if (risk !== 'HIGH') return; // skip MEDIUM — only show HIGH
       const labels = labelMap ? labelMap[idx] : {};
 
       // Build a display name from available label columns
