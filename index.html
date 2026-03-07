@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PhantomGuard — Federated Inventory Intelligence</title>
 
@@ -1552,11 +1555,19 @@ async function startTraining() {
     $statRound.textContent = rnd + 1;
     $hdrRound.textContent  = `ROUND ${rnd + 1}`;
 
-    // Submit update
+    // Submit update — use CURRENT server round at time of submission
     try {
       const wJson = weightsToJSON(model);
-      await submitUpdate(storeId, serverData.round, wJson, trainingData.length, finalLoss);
-      log(`Round ${rnd+1} — weights submitted`);
+      // Re-fetch current round before submitting to avoid stale rejection
+      let submitRound = serverData.round;
+      try {
+        const fresh = await apiCall(`/get_model?store_id=${storeId}`);
+        submitRound = fresh.round;
+      } catch(e) { /* use last known round */ }
+      await submitUpdate(storeId, submitRound, wJson, trainingData.length, finalLoss);
+      log(`Round ${rnd+1} — weights submitted (server round ${submitRound}) ✓`, 'ok');
+      // Next round: expect server to be at submitRound+1
+      expectedServerRound = submitRound + 1;
     } catch (e) {
       log('Submit failed: ' + e.message, 'warn');
     }
