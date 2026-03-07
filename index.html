@@ -1039,7 +1039,7 @@ function parseCSV(text) {
 
   if (numericCols.length < 1) throw new Error('Not enough numeric columns detected');
 
-  const features = numericCols.slice(0, 10);
+  const features = numericCols;  // use ALL numeric features — must match server INPUT_DIM
   const colIdxs  = features.map(f => headers.indexOf(f));
 
   const matrix = rows.map(row => colIdxs.map(i => parseFloat(row[i]) || 0));
